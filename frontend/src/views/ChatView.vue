@@ -9,6 +9,7 @@
         v-model:search="searchQuery"
         @select="selectConversation"
         @filter-account="onFilterAccount"
+        @new-chat="showNewChatDialog = true"
       />
       <!-- Resize handle -->
       <div class="resize-handle" @mousedown="startResize('left', $event)" />
@@ -21,6 +22,7 @@
       :loading="loadingMsgs"
       :sending="sendingMsg"
       @send="sendMessage"
+      @send-attachment="onSendAttachment"
       @toggle-contact-panel="showContactPanel = !showContactPanel"
       :show-contact-panel="showContactPanel"
       style="flex: 1; min-width: 300px;"
@@ -36,6 +38,17 @@
         @saved="fetchConversations()"
       />
     </div>
+
+    <!-- New chat dialog -->
+    <NewChatDialog
+      v-model="showNewChatDialog"
+      @created="onCreateConversation"
+    />
+
+    <!-- Attachment upload error toast -->
+    <v-snackbar v-model="attachmentToast.show" :color="attachmentToast.color" timeout="4000">
+      {{ attachmentToast.text }}
+    </v-snackbar>
   </div>
 </template>
 
@@ -44,14 +57,26 @@ import { ref, onMounted, onUnmounted, watch } from 'vue';
 import ConversationList from '@/components/chat/ConversationList.vue';
 import MessageThread from '@/components/chat/MessageThread.vue';
 import ChatContactPanel from '@/components/chat/ChatContactPanel.vue';
+import NewChatDialog from '@/components/chat/NewChatDialog.vue';
 import { useChat } from '@/composables/use-chat';
 
 const {
   conversations, selectedConvId, selectedConv, messages,
   loadingConvs, loadingMsgs, sendingMsg, searchQuery, accountFilter,
-  fetchConversations, selectConversation, sendMessage,
+  fetchConversations, selectConversation, sendMessage, sendAttachment, createConversation,
   initSocket, destroySocket,
 } = useChat();
+
+const attachmentToast = ref<{ show: boolean; text: string; color: string }>({
+  show: false, text: '', color: 'success',
+});
+
+async function onSendAttachment(file: File) {
+  const result = await sendAttachment(file);
+  if (!result.ok) {
+    attachmentToast.value = { show: true, text: result.error, color: 'error' };
+  }
+}
 
 function onFilterAccount(id: string | null) {
   accountFilter.value = id;
@@ -59,6 +84,11 @@ function onFilterAccount(id: string | null) {
 }
 
 const showContactPanel = ref(false);
+const showNewChatDialog = ref(false);
+
+async function onCreateConversation(params: { accountId: string; contactId: string }) {
+  await createConversation(params.accountId, params.contactId);
+}
 
 // Resizable panel widths (restored from localStorage)
 const leftWidth = ref(parseInt(localStorage.getItem('chat-left-width') || '320'));

@@ -54,6 +54,16 @@ export async function handleIncomingMessage(
     });
     if (!account) return null;
 
+    // Dedupe by zaloMsgId — protect against duplicate inserts when offline
+    // messages or history sync overlap with realtime events.
+    if (msg.msgId) {
+      const existing = await prisma.message.findFirst({
+        where: { zaloMsgId: msg.msgId },
+        select: { id: true },
+      });
+      if (existing) return null;
+    }
+
     const contactId = await upsertContact(msg, account.orgId);
 
     const conversation = await findOrCreateConversation(msg, account.orgId, contactId);
@@ -183,17 +193,18 @@ async function findOrCreateConversation(
 
   if (existing) return existing;
 
+  // Create with schema defaults (unreadCount=0, isReplied=true).
+  // updateConversationAfterMessage runs immediately after and applies the
+  // correct delta for this specific message — keeping the math in one place.
   return prisma.conversation.create({
     data: {
       id: randomUUID(),
       orgId,
       zaloAccountId: msg.accountId,
-      contactId: msg.threadType === 'user' ? contactId : contactId,
+      contactId,
       threadType: msg.threadType,
       externalThreadId,
       lastMessageAt: new Date(msg.timestamp),
-      unreadCount: msg.isSelf ? 0 : 1,
-      isReplied: msg.isSelf,
     },
     select: { id: true },
   });

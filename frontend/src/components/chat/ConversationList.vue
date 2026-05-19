@@ -1,5 +1,13 @@
 <template>
   <div class="conversation-list d-flex flex-column" style="width: 100%; border-right: 1px solid var(--border-glow, rgba(0,242,255,0.1)); height: 100%;">
+    <!-- New chat button -->
+    <div class="pa-2 pb-0">
+      <v-btn
+        color="primary" block size="small"
+        prepend-icon="mdi-message-plus"
+        @click="$emit('new-chat')"
+      >Chat mới với khách hàng</v-btn>
+    </div>
     <!-- Account filter + Search -->
     <div class="pa-2">
       <v-select
@@ -100,6 +108,7 @@ defineEmits<{
   select: [id: string];
   'update:search': [value: string];
   'filter-account': [accountId: string | null];
+  'new-chat': [];
 }>();
 
 const accountOptions = ref<{ text: string; value: string }[]>([]);

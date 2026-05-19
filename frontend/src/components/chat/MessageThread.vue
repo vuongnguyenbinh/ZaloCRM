@@ -1,5 +1,18 @@
 <template>
-  <div class="message-thread d-flex flex-column flex-grow-1" style="height: 100%;">
+  <div
+    class="message-thread d-flex flex-column flex-grow-1"
+    style="height: 100%; position: relative;"
+    @dragenter.prevent="onDragEnter"
+    @dragover.prevent
+    @dragleave.prevent="onDragLeave"
+    @drop.prevent="onDrop"
+  >
+    <!-- Drag-over overlay -->
+    <div v-if="isDragging" class="drag-overlay">
+      <v-icon icon="mdi-cloud-upload-outline" size="64" color="primary" />
+      <p class="text-h6 mt-2">Thả file để gửi</p>
+    </div>
+
     <!-- Empty state -->
     <div v-if="!conversation" class="d-flex align-center justify-center flex-grow-1">
       <div class="text-center text-grey">
@@ -87,10 +100,49 @@
         <div v-if="!loading && messages.length === 0" class="text-center pa-8 text-grey">Chưa có tin nhắn</div>
       </div>
 
+      <!-- Pending attachment preview -->
+      <div v-if="pendingFile" class="pa-2 pb-0">
+        <v-card variant="outlined" class="pa-2 d-flex align-center">
+          <img v-if="pendingPreviewUrl" :src="pendingPreviewUrl" alt="preview" class="attachment-thumb mr-3" />
+          <v-icon v-else size="32" class="mr-3" color="info">mdi-file-document-outline</v-icon>
+          <div class="flex-grow-1">
+            <div class="text-body-2 font-weight-medium text-truncate" style="max-width: 320px;">{{ pendingFile.name }}</div>
+            <div class="text-caption text-grey">{{ formatBytes(pendingFile.size) }}</div>
+          </div>
+          <v-btn icon size="small" variant="text" @click="clearPending" :disabled="sending">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card>
+      </div>
+
       <!-- Input -->
       <div class="pa-2 d-flex align-end chat-input-area">
-        <v-textarea v-model="inputText" placeholder="Nhập tin nhắn..." variant="solo-filled" density="compact" hide-details auto-grow rows="1" max-rows="3" @keydown.enter.exact.prevent="handleSend" class="flex-grow-1 mr-2" />
-        <v-btn icon color="primary" :loading="sending" :disabled="!inputText.trim()" @click="handleSend"><v-icon>mdi-send</v-icon></v-btn>
+        <v-btn
+          icon size="small" variant="text" class="mr-1"
+          title="Đính kèm ảnh hoặc file"
+          :disabled="sending"
+          @click="openFilePicker"
+        ><v-icon>mdi-paperclip</v-icon></v-btn>
+        <input
+          ref="fileInputEl"
+          type="file"
+          :accept="ACCEPTED_TYPES"
+          style="display: none"
+          @change="onFilePicked"
+        />
+        <v-textarea
+          v-model="inputText"
+          :placeholder="pendingFile ? 'Thêm ghi chú (tuỳ chọn)...' : 'Nhập tin nhắn...'"
+          variant="solo-filled" density="compact" hide-details auto-grow rows="1" max-rows="3"
+          @keydown.enter.exact.prevent="handleSend"
+          class="flex-grow-1 mr-2"
+        />
+        <v-btn
+          icon color="primary"
+          :loading="sending"
+          :disabled="!inputText.trim() && !pendingFile"
+          @click="handleSend"
+        ><v-icon>mdi-send</v-icon></v-btn>
       </div>
     </template>
 
@@ -120,7 +172,11 @@ const props = defineProps<{
   showContactPanel?: boolean;
 }>();
 
-const emit = defineEmits<{ send: [content: string]; 'toggle-contact-panel': [] }>();
+const emit = defineEmits<{
+  send: [content: string];
+  'send-attachment': [file: File];
+  'toggle-contact-panel': [];
+}>();
 
 const inputText = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
@@ -128,7 +184,82 @@ const previewImageUrl = ref('');
 const showImagePreview = computed({ get: () => !!previewImageUrl.value, set: (v) => { if (!v) previewImageUrl.value = ''; } });
 const syncSnack = ref({ show: false, text: '', color: 'success' });
 
-function handleSend() { if (!inputText.value.trim()) return; emit('send', inputText.value); inputText.value = ''; }
+// ── Attachment upload state (feature 0003) ───────────────────────────────────
+const ACCEPTED_TYPES =
+  'image/jpeg,image/png,image/gif,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip';
+const ACCEPTED_TYPES_SET = new Set(ACCEPTED_TYPES.split(','));
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+const fileInputEl = ref<HTMLInputElement | null>(null);
+const pendingFile = ref<File | null>(null);
+const pendingPreviewUrl = ref<string | null>(null);
+const isDragging = ref(false);
+let dragDepth = 0;
+
+function openFilePicker() {
+  fileInputEl.value?.click();
+}
+
+function onFilePicked(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const f = input.files?.[0];
+  if (f) acceptFile(f);
+  input.value = ''; // reset so picking the same file twice still fires
+}
+
+function acceptFile(file: File) {
+  if (!ACCEPTED_TYPES_SET.has(file.type)) {
+    syncSnack.value = { show: true, text: `Không hỗ trợ loại tệp: ${file.type || 'unknown'}`, color: 'error' };
+    return;
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    syncSnack.value = { show: true, text: 'File quá lớn (tối đa 20MB)', color: 'error' };
+    return;
+  }
+  pendingFile.value = file;
+  if (pendingPreviewUrl.value) URL.revokeObjectURL(pendingPreviewUrl.value);
+  pendingPreviewUrl.value = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+}
+
+function clearPending() {
+  if (pendingPreviewUrl.value) URL.revokeObjectURL(pendingPreviewUrl.value);
+  pendingFile.value = null;
+  pendingPreviewUrl.value = null;
+}
+
+function onDragEnter(e: DragEvent) {
+  if (!e.dataTransfer?.types.includes('Files')) return;
+  dragDepth++;
+  isDragging.value = true;
+}
+function onDragLeave() {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) isDragging.value = false;
+}
+function onDrop(e: DragEvent) {
+  dragDepth = 0;
+  isDragging.value = false;
+  const f = e.dataTransfer?.files?.[0];
+  if (f) acceptFile(f);
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function handleSend() {
+  // Attachment path takes precedence — text caption can be sent separately afterwards
+  if (pendingFile.value) {
+    emit('send-attachment', pendingFile.value);
+    clearPending();
+    return;
+  }
+  if (!inputText.value.trim()) return;
+  emit('send', inputText.value);
+  inputText.value = '';
+}
 function formatMessageTime(d: string) { return new Date(d).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }); }
 function openFile(url: string) { window.open(url, '_blank'); }
 
@@ -229,4 +360,24 @@ watch(() => props.messages.length, async () => { await nextTick(); if (messagesC
 .file-card { display: flex; align-items: center; padding: 8px 12px; border-radius: 8px; background: rgba(0, 242, 255, 0.05); border: 1px solid rgba(0, 242, 255, 0.1); }
 .chat-image { max-width: 100%; max-height: 300px; border-radius: 12px; cursor: pointer; transition: transform 0.2s; }
 .chat-image:hover { transform: scale(1.02); }
+.attachment-thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.drag-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 242, 255, 0.12);
+  border: 2px dashed rgba(0, 242, 255, 0.55);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: #00F2FF;
+}
 </style>

@@ -117,6 +117,33 @@ export function useChat() {
     }
   }
 
+  /**
+   * Upload a file via multipart and have the backend forward it to Zalo.
+   * Returns the persisted Message on success, or an error string.
+   * Feature 0003.
+   */
+  async function sendAttachment(file: File): Promise<{ ok: true; message: Message } | { ok: false; error: string }> {
+    if (!selectedConvId.value) return { ok: false, error: 'Chưa chọn cuộc trò chuyện' };
+    sendingMsg.value = true;
+    try {
+      const form = new FormData();
+      form.append('file', file, file.name);
+      const res = await api.post(
+        `/conversations/${selectedConvId.value}/attachments`,
+        form,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      messages.value.push(res.data);
+      return { ok: true, message: res.data };
+    } catch (err: any) {
+      const error = err.response?.data?.error || err.message || 'Gửi file thất bại';
+      console.error('Failed to send attachment:', error);
+      return { ok: false, error };
+    } finally {
+      sendingMsg.value = false;
+    }
+  }
+
   function initSocket() {
     socket = io({ transports: ['websocket', 'polling'] });
 
@@ -145,6 +172,31 @@ export function useChat() {
     socket = null;
   }
 
+  /**
+   * Create (or reuse) a conversation with a contact. Used by the "+ New chat"
+   * dialog. Pushes the conversation to the head of the list and auto-selects
+   * it. Returns the conversation id so callers can react.
+   */
+  async function createConversation(accountId: string, contactId: string): Promise<string | null> {
+    try {
+      const res = await api.post('/conversations', { accountId, contactId });
+      const conv = res.data as Conversation;
+
+      // De-dupe in the local list (idempotent endpoint may return existing)
+      const idx = conversations.value.findIndex(c => c.id === conv.id);
+      if (idx >= 0) {
+        conversations.value.splice(idx, 1);
+      }
+      conversations.value.unshift(conv);
+
+      await selectConversation(conv.id);
+      return conv.id;
+    } catch (err) {
+      console.error('Failed to create conversation:', err);
+      return null;
+    }
+  }
+
   return {
     conversations,
     selectedConvId,
@@ -158,6 +210,8 @@ export function useChat() {
     fetchConversations,
     selectConversation,
     sendMessage,
+    sendAttachment,
+    createConversation,
     initSocket,
     destroySocket,
   };

@@ -51,6 +51,8 @@
 
 ## 3. Chat với khách hàng
 
+> ⚠️ **Lưu ý quan trọng:** Cuộc trò chuyện **chỉ xuất hiện** sau khi khách hàng nhắn tin tới Zalo của bạn, hoặc khi bạn tự gửi tin cho khách từ **app Zalo trên điện thoại**. Hệ thống không tự động load lịch sử hội thoại cũ khi thêm tài khoản Zalo mới, và **không có nút "Tạo cuộc trò chuyện mới"** ở giao diện web. Để chủ động liên hệ khách lần đầu, hãy nhắn từ điện thoại — tin nhắn sẽ tự đồng bộ về CRM.
+
 ### Giao diện
 
 Giao diện chat chia 3 cột (kéo thả để thay đổi kích thước):
@@ -59,7 +61,7 @@ Giao diện chat chia 3 cột (kéo thả để thay đổi kích thước):
 |----------|----------|----------|
 | Danh sách hội thoại | Nội dung tin nhắn | Thông tin khách hàng |
 | Lọc theo Zalo | Gửi tin nhắn | Lưu thông tin CRM |
-| Tìm kiếm | Xem ảnh/file | Lịch hẹn |
+| Tìm kiếm | Xem ảnh/file | Lịch hẹn + Đơn hàng |
 
 ### Gửi tin nhắn
 
@@ -68,11 +70,24 @@ Giao diện chat chia 3 cột (kéo thả để thay đổi kích thước):
 3. Nhấn **Enter** để gửi
 4. **Shift + Enter** = xuống dòng
 
+### Gửi ảnh và file đính kèm
+
+1. Click biểu tượng **📎** (paperclip) bên trái ô nhập tin → chọn ảnh/file từ máy tính
+2. **Hoặc** kéo-thả file thẳng vào khung chat
+3. Preview hiện ngay phía trên ô nhập (ảnh: thumbnail; file: card với tên + size)
+4. Bấm **biểu tượng gửi** → file được đẩy lên Zalo
+
+**Loại tệp được hỗ trợ:** JPG, PNG, GIF, WebP, PDF, Word/Excel/PowerPoint, CSV, TXT, ZIP. **Tối đa 20MB/file.**
+
+> ℹ️ Sticker, tin nhắn thoại, và video clip ghi từ trình duyệt chưa hỗ trợ — vẫn cần dùng app Zalo trên điện thoại.
+
 ### Xem ảnh và file
 
 - **Ảnh:** hiển thị trực tiếp → nhấn để phóng to
 - **File/PDF:** hiện thẻ tên file + dung lượng → nhấn để tải
-- **Nhắc hẹn Zalo:** hiện thẻ 📅 với thời gian → nhấn **Đồng bộ lịch**
+- **Sticker / Video / Voice / GIF:** hiển thị placeholder (🏷️ / 🎥 / 🎤 / GIF)
+- **Link:** hiện thẻ với tiêu đề + 🔗
+- **Nhắc hẹn Zalo:** hiện thẻ 📅 với thời gian → nhấn **Đồng bộ lịch** để tự tạo lịch hẹn trong CRM
 
 ### Lọc theo Zalo
 
@@ -82,7 +97,7 @@ Giao diện chat chia 3 cột (kéo thả để thay đổi kích thước):
 ### Cập nhật thông tin khách hàng
 
 1. Nhấn biểu tượng **👤** (góc phải header chat) → panel thông tin mở ra
-2. Điền: Họ tên, SĐT, Email, Nguồn, Trạng thái, Ngày tiếp nhận, Ghi chú, Tags
+2. Điền: Họ tên, SĐT, Email, Nguồn, Trạng thái, Ngày tiếp nhận, **Hẹn tái khám**, Ghi chú, Tags
 3. Nhấn **Lưu thông tin**
 4. Dữ liệu tự động đồng bộ sang tab **Khách hàng**
 
@@ -90,6 +105,12 @@ Giao diện chat chia 3 cột (kéo thả để thay đổi kích thước):
 
 1. Trong panel thông tin → mục **Lịch hẹn**
 2. Nhấn **+** → điền ngày, giờ, ghi chú → **Tạo lịch hẹn**
+
+### Tạo đơn hàng từ chat
+
+1. Trong panel thông tin → cuộn xuống mục **Đơn hàng**
+2. Nhấn **+** → điền mã đơn, tổng tiền, trạng thái, ghi chú → **Tạo đơn hàng**
+3. Đơn hàng được gắn với cả **khách hàng** lẫn **cuộc trò chuyện** hiện tại, hiện thị đồng thời ở tab **Đơn hàng** và **Khách hàng**
 
 ---
 

@@ -20,6 +20,15 @@
           <v-btn icon size="small" color="success" @click="syncContacts(item.id)" title="Đồng bộ danh bạ Zalo" :loading="syncing === item.id">
             <v-icon>mdi-account-sync</v-icon>
           </v-btn>
+          <v-btn
+            v-if="authStore.isAdmin"
+            icon size="small" color="warning"
+            @click="openHistoryDialog(item)"
+            title="Đồng bộ lịch sử nhóm chat"
+            :disabled="item.liveStatus !== 'connected'"
+            :loading="syncingHistory === item.id">
+            <v-icon>mdi-history</v-icon>
+          </v-btn>
           <v-btn v-if="item.liveStatus !== 'connected'" icon size="small" color="primary" @click="loginAccount(item.id)" title="Đăng nhập QR">
             <v-icon>mdi-qrcode</v-icon>
           </v-btn>
@@ -93,6 +102,59 @@
       :account-id="accessTarget?.id ?? ''"
       :account-name="accessTarget?.displayName ?? accessTarget?.id ?? ''"
     />
+
+    <!-- Sync group history dialog -->
+    <v-dialog v-model="showHistoryDialog" max-width="480">
+      <v-card>
+        <v-card-title>Đồng bộ lịch sử nhóm chat</v-card-title>
+        <v-card-text>
+          <p class="mb-3 text-body-2">
+            Tải <strong>{{ historyCount }}</strong> tin nhắn gần nhất của
+            <strong>{{ historyGroupId ? '1 nhóm' : 'TẤT CẢ nhóm' }}</strong>
+            trên tài khoản <strong>{{ historyTarget?.displayName }}</strong>.
+            Có thể mất vài chục giây nếu có nhiều nhóm.
+          </p>
+          <v-text-field
+            v-model="historyGroupId"
+            label="Group ID (bỏ trống = tất cả nhóm)"
+            density="compact" variant="outlined" hide-details
+            placeholder="VD: 1234567890"
+            class="mb-3"
+          />
+          <v-text-field
+            v-model.number="historyCount"
+            label="Số tin nhắn / nhóm (1–200)"
+            type="number" min="1" max="200"
+            density="compact" variant="outlined" hide-details
+          />
+          <v-alert
+            v-if="historyResult"
+            :type="historyResult.success ? 'success' : 'error'"
+            density="compact" class="mt-3" closable
+            @click:close="historyResult = null"
+          >
+            <div v-if="historyResult.success">
+              Đã insert <strong>{{ historyResult.totalInserted }}</strong> tin mới,
+              skip <strong>{{ historyResult.totalSkipped }}</strong> (đã tồn tại).
+              Sync qua {{ historyResult.synced?.length ?? 0 }} nhóm.
+            </div>
+            <div v-else>{{ historyResult.error }}</div>
+          </v-alert>
+          <p class="text-caption mt-3 text-grey">
+            💡 Lưu ý: zca-js không hỗ trợ lịch sử chat 1-1. Endpoint này chỉ sync nhóm.
+          </p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn @click="showHistoryDialog = false">Đóng</v-btn>
+          <v-btn
+            color="primary" :loading="syncingHistory === historyTarget?.id"
+            :disabled="!historyCount || historyCount < 1 || historyCount > 200"
+            @click="runSyncHistory"
+          >Đồng bộ</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -115,11 +177,21 @@ const authStore = useAuthStore();
 
 const showAddDialog = ref(false);
 const syncing = ref<string | null>(null);
+const syncingHistory = ref<string | null>(null);
 const showDeleteDialog = ref(false);
 const showAccessDialog = ref(false);
+const showHistoryDialog = ref(false);
 const newAccountName = ref('');
 const deleteTarget = ref<ZaloAccount | null>(null);
 const accessTarget = ref<ZaloAccount | null>(null);
+const historyTarget = ref<ZaloAccount | null>(null);
+const historyGroupId = ref('');
+const historyCount = ref(50);
+const historyResult = ref<
+  | { success: true; totalInserted: number; totalSkipped: number; synced: unknown[] }
+  | { success: false; error: string }
+  | null
+>(null);
 
 const headers = [
   { title: 'Tên', key: 'displayName', sortable: true },
@@ -138,6 +210,39 @@ async function syncContacts(accountId: string) {
     alert('Đồng bộ thất bại: ' + (err.response?.data?.error || err.message));
   } finally {
     syncing.value = null;
+  }
+}
+
+function openHistoryDialog(account: ZaloAccount) {
+  historyTarget.value = account;
+  historyGroupId.value = '';
+  historyCount.value = 50;
+  historyResult.value = null;
+  showHistoryDialog.value = true;
+}
+
+async function runSyncHistory() {
+  if (!historyTarget.value) return;
+  const accountId = historyTarget.value.id;
+  syncingHistory.value = accountId;
+  historyResult.value = null;
+  try {
+    const payload: { count: number; groupId?: string } = { count: historyCount.value };
+    if (historyGroupId.value.trim()) payload.groupId = historyGroupId.value.trim();
+    const res = await api.post(`/zalo-accounts/${accountId}/sync-group-history`, payload);
+    historyResult.value = {
+      success: true,
+      totalInserted: res.data.totalInserted,
+      totalSkipped: res.data.totalSkipped,
+      synced: res.data.synced ?? [],
+    };
+  } catch (err: any) {
+    historyResult.value = {
+      success: false,
+      error: err.response?.data?.error || err.message || 'Đồng bộ thất bại',
+    };
+  } finally {
+    syncingHistory.value = null;
   }
 }
 

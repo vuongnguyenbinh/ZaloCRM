@@ -8,6 +8,7 @@ import cors from '@fastify/cors';
 import fastifyJwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
+import fastifyMultipart from '@fastify/multipart';
 import { Server } from 'socket.io';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,6 +54,14 @@ async function bootstrap() {
 
   await app.register(fastifyJwt, {
     secret: config.jwtSecret,
+  });
+
+  // Multipart for file uploads (chat attachments — feature 0003)
+  await app.register(fastifyMultipart, {
+    limits: {
+      fileSize: 20 * 1024 * 1024, // 20 MB per file (Zalo client limit)
+      files: 1,
+    },
   });
 
   // Rate limiting with higher limits and per-key tracking
